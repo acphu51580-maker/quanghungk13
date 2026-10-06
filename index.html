@@ -1,31 +1,459 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Aimbot Demo iOS</title>
+    <style>
+        * { 
+            box-sizing: border-box; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            margin: 0; 
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        html, body {
+            background: #000;
+            color: white;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            touch-action: none;
+        }
 
-.
-    }, 800);
-}
+        /* ============ BẢNG ĐIỀU KHIỂN BAN ĐẦU ============ */
+        #controlPanel {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(180deg, #0a0a0a 0%, #1a1a2e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 20px;
+            z-index: 100;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        #controlPanel h1 {
+            color: #00FFFF;
+            margin-bottom: 15px;
+            font-size: 24px;
+            text-align: center;
+            text-shadow: 0 0 15px #00FFFF;
+        }
+        #controlPanel p {
+            color: #94a3b8;
+            margin-bottom: 30px;
+            font-size: 14px;
+            text-align: center;
+            max-width: 350px;
+            line-height: 1.5;
+        }
+        .btn {
+            padding: 18px 40px;
+            border: none;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 8px;
+            text-transform: uppercase;
+            width: 260px;
+            letter-spacing: 1px;
+            transition: 0.2s;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-start {
+            background: #00FF00;
+            color: #000;
+            box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
+        }
+        .btn-info {
+            background: #1E3A8A;
+            color: white;
+            border: 1px solid #00FFFF;
+            font-size: 14px;
+            padding: 12px 30px;
+        }
 
-function changeKey() {
-    if (countdownInterval) clearInterval(countdownInterval);
-    if (countdownAimInterval) clearInterval(countdownAimInterval);
-    try { localStorage.removeItem('ff_active_key'); } catch(e) {}
-    currentAim = null;
-    currentAimName = "";
-    document.getElementById('licenseInput').value = '';
-    document.getElementById('errorMsg').style.display = 'none';
-    document.getElementById('successMsg').style.display = 'none';
-    document.getElementById('aimSelectSection').style.display = 'none';
-    document.getElementById('toolSection').style.display = 'none';
-    document.getElementById('authSection').style.display = 'flex';
-    showNotification("Đã đổi key. Vui lòng nhập key mới!");
-}
+        /* ============ OVERLAY TOÀN MÀN HÌNH ============ */
+        #overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: none;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        #overlay.active { display: block; }
 
-function changeKeyFromAdmin() {
-    changeKey();
-    toggleAdminPanel();
-    showNotification("Đã đổi key từ Admin!");
-}
+        /* Vòng tròn FOV */
+        #fovCircle {
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            border: 2px solid #00FF00;
+            border-radius: 50%;
+            box-shadow: 0 0 25px #00FF00, inset 0 0 25px rgba(0, 255, 0, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.15s, height 0.15s;
+            pointer-events: none;
+        }
 
-function renderAimList() {
-    const container = document.getElementById('aimListContainer');
-    if (!container) return;
-    container.inne
-    if (!
+        /* Tâm súng */
+        #crosshair {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: #00FFFF;
+            box-shadow: 0 0 12px #00FFFF;
+        }
+        #crosshair::before {
+            width: 3px; height: 100%; left: 50%; top: 0; transform: translateX(-50%);
+        }
+        #crosshair::after {
+            width: 100%; height: 3px; left: 0; top: 50%; transform: translateY(-50%);
+        }
+
+        /* Mục tiêu (đầu địch giả lập) */
+        .enemy-head {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 0, 0, 0.35);
+            border: 2px solid #ff0000;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.7);
+            pointer-events: none;
+        }
+        .enemy-body {
+            position: absolute;
+            width: 50px;
+            height: 80px;
+            background: rgba(255, 100, 100, 0.15);
+            border: 1px dashed rgba(255, 100, 100, 0.6);
+            border-radius: 15px 15px 8px 8px;
+            transform: translate(-50%, 0);
+            pointer-events: none;
+        }
+
+        /* Trạng thái */
+        #statusBadge {
+            position: absolute;
+            top: calc(20px + env(safe-area-inset-top));
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #00FF00;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            border: 1px solid #00FF00;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            font-weight: bold;
+        }
+
+        /* Nút STOP nổi */
+        #stopBtn {
+            position: absolute;
+            bottom: calc(25px + env(safe-area-inset-bottom));
+            right: 25px;
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            background: rgba(220, 38, 38, 0.85);
+            color: white;
+            border: 2px solid white;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            pointer-events: auto;
+            z-index: 60;
+            box-shadow: 0 0 20px rgba(220, 38, 38, 0.7);
+        }
+        #stopBtn:active { transform: scale(0.9); }
+
+        /* Nút chỉnh FOV nhỏ */
+        #fovControls {
+            position: absolute;
+            bottom: calc(25px + env(safe-area-inset-bottom));
+            left: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: auto;
+            z-index: 60;
+        }
+        .fovBtn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            color: #00FFFF;
+            border: 1px solid #00FFFF;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .fovBtn:active { transform: scale(0.9); }
+
+        /* Thông báo khi chạm */
+        #hint {
+            position: absolute;
+            bottom: calc(100px + env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            color: #94a3b8;
+            font-size: 12px;
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            padding: 6px 12px;
+            border-radius: 15px;
+            animation: fadeHint 4s forwards;
+        }
+        @keyframes fadeHint {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- BẢNG ĐIỀU KHIỂN BAN ĐẦU -->
+<div id="controlPanel">
+    <h1>🎯 AIMBOT DEMO iOS</h1>
+    <p>Bấm START để bật overlay.<br>Sau đó chạm vào màn hình để di chuyển tâm súng.</p>
+    <button class="btn btn-start" onclick="startOverlay()">▶ START</button>
+    <button class="btn btn-info" onclick="alert('Demo mô phỏng trên Web.\nKhông can thiệp vào game thật.\nChỉ để học logic aimbot.')">ℹ️ Thông tin</button>
+</div>
+
+<!-- OVERLAY TOÀN MÀN HÌNH -->
+<div id="overlay">
+    <!-- Mục tiêu giả lập -->
+    <div class="enemy-body" id="enemyBody"></div>
+    <div class="enemy-head" id="enemyHead"></div>
+    
+    <!-- Vòng tròn FOV -->
+    <div id="fovCircle"></div>
+    
+    <!-- Tâm súng -->
+    <div id="crosshair"></div>
+    
+    <!-- Trạng thái -->
+    <div id="statusBadge">🎯 AIMBOT: ON</div>
+    
+    <!-- Nút điều khiển -->
+    <div id="fovControls">
+        <button class="fovBtn" onclick="changeFov(10)">➕</button>
+        <button class="fovBtn" onclick="changeFov(-10)">➖</button>
+    </div>
+    <button id="stopBtn" onclick="stopOverlay()">✕</button>
+    
+    <div id="hint">👆 Chạm màn hình để di chuyển tâm súng</div>
+</div>
+
+<script>
+    // ==========================================
+    // CẤU HÌNH
+    // ==========================================
+    let FOV_RADIUS = 70;        // Bán kính vòng tròn FOV (px)
+    const AIM_SPEED = 0.18;     // Tốc độ ghìm (0-1), càng cao càng nhanh
+    const AIM_THRESHOLD = 3;    // Ngưỡng coi như khớp (px)
+
+    let isOverlayOn = false;
+    let aimInterval = null;
+
+    // Tâm súng
+    let crosshairX = window.innerWidth / 2;
+    let crosshairY = window.innerHeight / 2;
+
+    // Mục tiêu giả lập (đầu địch)
+    let enemyHeadX = crosshairX + 40;
+    let enemyHeadY = crosshairY + 30;
+
+    // Đối tượng DOM
+    const overlay = document.getElementById('overlay');
+    const crosshair = document.getElementById('crosshair');
+    const fovCircle = document.getElementById('fovCircle');
+    const enemyHead = document.getElementById('enemyHead');
+    const enemyBody = document.getElementById('enemyBody');
+    const statusBadge = document.getElementById('statusBadge');
+
+    // ==========================================
+    // BẬT / TẮT OVERLAY
+    // ==========================================
+    function startOverlay() {
+        isOverlayOn = true;
+        document.getElementById('controlPanel').style.display = 'none';
+        overlay.classList.add('active');
+
+        crosshairX = window.innerWidth / 2;
+        crosshairY = window.innerHeight / 2;
+        
+        // Đặt mục tiêu ở vị trí ngẫu nhiên gần tâm
+        spawnEnemy();
+
+        updatePositions();
+
+        // Vòng lặp aimbot
+        aimInterval = setInterval(aimbotTick, 30);
+
+        // Xoá hint sau 4 giây
+        setTimeout(() => {
+            const hint = document.getElementById('hint');
+            if (hint) hint.remove();
+        }, 4000);
+    }
+
+    function stopOverlay() {
+        isOverlayOn = false;
+        document.getElementById('controlPanel').style.display = 'flex';
+        overlay.classList.remove('active');
+        if (aimInterval) clearInterval(aimInterval);
+    }
+
+    // ==========================================
+    // TẠO MỤC TIÊU NGẪU NHIÊN
+    // ==========================================
+    function spawnEnemy() {
+        const padding = 80;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        
+        enemyHeadX = padding + Math.random() * (w - padding * 2);
+        enemyHeadY = padding + Math.random() * (h - padding * 2);
+        
+        updateEnemyPosition();
+    }
+
+    function updateEnemyPosition() {
+        enemyHead.style.left = enemyHeadX + 'px';
+        enemyHead.style.top = enemyHeadY + 'px';
+        enemyBody.style.left = enemyHeadX + 'px';
+        enemyBody.style.top = (enemyHeadY + 25) + 'px';
+    }
+
+    // ==========================================
+    // CẬP NHẬT VỊ TRÍ HIỂN THỊ
+    // ==========================================
+    function updatePositions() {
+        crosshair.style.left = crosshairX + 'px';
+        crosshair.style.top = crosshairY + 'px';
+        
+        fovCircle.style.left = crosshairX + 'px';
+        fovCircle.style.top = crosshairY + 'px';
+        fovCircle.style.width = (FOV_RADIUS * 2) + 'px';
+        fovCircle.style.height = (FOV_RADIUS * 2) + 'px';
+    }
+
+    // ==========================================
+    // LOGIC AIMBOT
+    // ==========================================
+    function aimbotTick() {
+        if (!isOverlayOn) return;
+
+        // Mô phỏng đầu địch di chuyển nhẹ (giả lập người chơi đang di chuyển)
+        enemyHeadX += (Math.random() - 0.5) * 1.5;
+        enemyHeadY += (Math.random() - 0.5) * 1.5;
+        updateEnemyPosition();
+
+        // Khoảng cách từ tâm súng đến đầu địch
+        const dx = enemyHeadX - crosshairX;
+        const dy = enemyHeadY - crosshairY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance <= FOV_RADIUS) {
+            // Kéo tâm súng về phía đầu địch (ghìm)
+            crosshairX += dx * AIM_SPEED;
+            crosshairY += dy * AIM_SPEED;
+            updatePositions();
+
+            if (distance < AIM_THRESHOLD) {
+                statusBadge.innerText = '🎯 ĐÃ GHÌM VÀO ĐẦU!';
+                statusBadge.style.color = '#00FF00';
+                statusBadge.style.borderColor = '#00FF00';
+            } else {
+                statusBadge.innerText = '🎯 ĐANG GHÌM...';
+                statusBadge.style.color = '#FFFF00';
+                statusBadge.style.borderColor = '#FFFF00';
+            }
+        } else {
+            statusBadge.innerText = '🎯 MỤC TIÊU NGOÀI VÙNG';
+            statusBadge.style.color = '#94a3b8';
+            statusBadge.style.borderColor = '#94a3b8';
+        }
+    }
+
+    // ==========================================
+    // ĐIỀU CHỈNH FOV
+    // ==========================================
+    function changeFov(delta) {
+        FOV_RADIUS = Math.max(30, Math.min(200, FOV_RADIUS + delta));
+        updatePositions();
+    }
+
+    // ==========================================
+    // CHẠM MÀN HÌNH ĐỂ DI CHUYỂN TÂM SÚNG (iOS)
+    // ==========================================
+    document.addEventListener('touchstart', handleTouch, { passive: false });
+    document.addEventListener('touchmove', handleTouch, { passive: false });
+
+    function handleTouch(e) {
+        if (!isOverlayOn) return;
+        e.preventDefault();
+        
+        const touch = e.touches[0];
+        if (!touch) return;
+        
+        // Bỏ qua nếu chạm vào nút STOP hoặc nút FOV
+        const target = e.target;
+        if (target.id === 'stopBtn' || target.classList.contains('fovBtn')) return;
+        
+        crosshairX = touch.clientX;
+        crosshairY = touch.clientY;
+        updatePositions();
+    }
+
+    // Cho desktop (test bằng chuột)
+    document.addEventListener('mousemove', (e) => {
+        if (!isOverlayOn) return;
+        if (e.target.id === 'stopBtn' || e.target.classList.contains('fovBtn')) return;
+        crosshairX = e.clientX;
+        crosshairY = e.clientY;
+        updatePositions();
+    });
+
+    // ==========================================
+    // XỬ LÝ XOAY MÀN HÌNH
+    // ==========================================
+    window.addEventListener('resize', () => {
+        if (isOverlayOn) {
+            crosshairX = Math.min(crosshairX, window.innerWidth);
+            crosshairY = Math.min(crosshairY, window.innerHeight);
+            updatePositions();
+        }
+    });
+
+    // ==========================================
+    // KHỞI TẠO
+    // ==========================================
+    updateEnemyPosition();
+    updatePositions();
+</script>
+
+</body>
+</html>
